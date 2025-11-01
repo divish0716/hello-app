@@ -1,0 +1,58 @@
+# main 브랜치의 파일이 변경되었을 때 실행
+# 간단한 빌드 동작만 수행함
+
+name: Main Branch Build
+
+on:
+  push:
+    branches: [main, dowon.choi]
+
+concurrency:
+  group: branch-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  IMAGE_NAME: "hello-app"
+  DOCKER_TAG: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 코드 체크아웃
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Docker 태그 계산 및 환경변수 설정
+      - name: Set Docker tag
+        run: |
+          TAG="${GITHUB_REF_NAME}-$(date +'%Y%m%d-%H%M')"
+          echo "DOCKER_TAG=$TAG" >> $GITHUB_ENV
+          echo "Calculated Docker tag: $TAG"
+
+      # 2. Docker 빌드
+      - name: Build Docker image
+        run: |
+          docker build -f infra/docker/dockerfile -t $IMAGE_NAME:$DOCKER_TAG .
+
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push Docker image to GHCR
+        run: |
+          docker push $IMAGE_NAME:$DOCKER_TAG
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # 3. (선택) 로컬 확인용 Docker 이미지 리스트
+      - name: List Docker images
+        run: docker images
