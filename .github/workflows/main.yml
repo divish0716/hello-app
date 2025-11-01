@@ -54,6 +54,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 3. (선택) 로컬 확인용 Docker 이미지 리스트
-      - name: List Docker images
-        run: docker images
+      # 2. Docker 이미지 가져오기 (build job에서 push 완료했으므로 pull)
+      - name: Pull Docker image
+        run: |
+          docker pull $IMAGE_NAME:$DOCKER_TAG
+
+      - name: Run Docker image
+        run: |
+          docker run -d -p 80:80 $IMAGE_NAME:$DOCKER_TAG
+
+      # 3. 스모크 테스트
+      - name: Run smoke test
+        run: |
+          infra/test/smoke.sh
