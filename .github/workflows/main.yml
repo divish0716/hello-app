@@ -24,6 +24,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    outputs:
+      DOCKER_TAG: ${{ steps.set_tag.outputs.DOCKER_TAG }}  # step에서 output으로 지정
+
     steps:
       # 1. 코드 체크아웃
       - name: Checkout code
@@ -31,10 +34,12 @@ jobs:
 
       # 2. Docker 태그 계산 및 환경변수 설정
       - name: Set Docker tag
+        id: set_tag
         run: |
           TAG="${GITHUB_REF_NAME}-$(date +'%Y%m%d-%H%M')"
-          echo "DOCKER_TAG=$TAG" >> $GITHUB_ENV
           echo "Calculated Docker tag: $TAG"
+          echo "DOCKER_TAG=$TAG" >> $GITHUB_ENV
+          echo "DOCKER_TAG=$TAG" >> $GITHUB_OUTPUT
 
       # 2. Docker 빌드
       - name: Build Docker image
@@ -54,6 +59,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Get docker tag
+        run: |
+          echo "DOCKER_TAG=${{ needs.build.outputs.DOCKER_TAG }}" >> $GITHUB_ENV
+
       # 2. Docker 이미지 가져오기 (build job에서 push 완료했으므로 pull)
       - name: Pull Docker image
         run: |
@@ -67,3 +76,4 @@ jobs:
       - name: Run smoke test
         run: |
           infra/test/smoke.sh
+          
