@@ -79,4 +79,4 @@ jobs:
       # 3. 스모크 테스트
       - name: Run smoke test
         run: |
-          infra/test/smoke.sh
+          ./infra/test/smoke.sh
