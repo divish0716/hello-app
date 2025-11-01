@@ -1,0 +1,14 @@
+# Node 20 LTS 기반 이미지 사용
+FROM node:20-slim
+
+# 작업 디렉토리 생성
+WORKDIR /app
+
+# 애플리케이션 파일 복사
+COPY server.js .
+
+# 컨테이너가 80번 포트를 사용할 것임을 선언
+EXPOSE 80
+
+# 컨테이너 실행 시 서버 시작
+CMD ["node", "server.js"]
