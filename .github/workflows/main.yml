@@ -16,6 +16,7 @@ permissions:
   contents: read
 
 env:
+  GHCR_URL: "ghcr.io/${{ github.repository }}"
   IMAGE_NAME: "hello-app"
   DOCKER_TAG: ""
 
@@ -46,7 +47,7 @@ jobs:
 
       - name: Push Docker image to GHCR
         run: |
-          docker push $IMAGE_NAME:$DOCKER_TAG
+          docker push $GHCR_URL/$IMAGE_NAME:$DOCKER_TAG
 
   test:
     needs: build
