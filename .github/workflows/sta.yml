@@ -24,7 +24,6 @@ jobs:
       - name: Calculate next release tag
         id: set_tag
         run: |
-          # 기존 태그 목록 가져오기
           git fetch --tags
           LAST_TAG=$(git tag --sort=-creatordate | head -n1)
           
@@ -86,7 +85,7 @@ jobs:
           ./infra/test/smoke.sh
 
   release:
-    needs: test
+    needs: [build, test]
     runs-on: ubuntu-latest
     permissions:
       contents: write  # 릴리즈 생성용
@@ -95,28 +94,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # DOCKER_TAG 환경변수 복원
+      - name: Set Docker tag
+        run: echo "DOCKER_TAG=${{ needs.build.outputs.DOCKER_TAG }}" >> $GITHUB_ENV
+
       # Git 태그 생성 및 push
       - name: Create Git tag
         run: |
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
-          git tag ${{ needs.build.outputs.DOCKER_TAG }}
-          git push origin ${{ needs.build.outputs.DOCKER_TAG }}
+          git tag $DOCKER_TAG
+          git push origin $DOCKER_TAG
 
       # GitHub Release 생성
       - name: Create GitHub release
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ needs.build.outputs.DOCKER_TAG }}
-          name: "Release ${{ needs.build.outputs.DOCKER_TAG }}"
-          body: "Docker image: $IMAGE_NAME:${{ needs.build.outputs.DOCKER_TAG }}"
+          tag: ${{ env.DOCKER_TAG }}
+          name: "Release ${{ env.DOCKER_TAG }}"
+          body: "Docker image: $IMAGE_NAME:${{ env.DOCKER_TAG }}"
           draft: false
           prerelease: false
 
   deploy:
     needs: release
     runs-on: ubuntu-latest
-
     steps:
       # TBD: 배포 단계
       - name: Get docker tag
