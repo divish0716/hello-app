@@ -1,7 +1,7 @@
 # main 브랜치의 파일이 변경되었을 때 실행
 # 간단한 빌드 동작만 수행함
 
-name: Main Branch Build
+name: Deploy to Dev
 
 on:
   push:
@@ -84,3 +84,14 @@ jobs:
       - name: Run smoke test
         run: |
           ./infra/test/smoke.sh
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get docker tag
+        run: |
+          echo "TBD"
+
+      
