@@ -49,6 +49,10 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     steps:
+      # ✅ 코드 체크아웃 (릴리즈 생성용)
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       # 🔐 GHCR 로그인
       - name: Login to GHCR
         run: |
