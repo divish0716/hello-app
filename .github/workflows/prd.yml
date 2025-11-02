@@ -66,7 +66,7 @@ jobs:
       # 🧪 운영계 테스트 (간단히 컨테이너 실행)
       - name: Run Docker image for verification
         run: |
-          docker run --rm -d -p 8080:80 $IMAGE_NAME:${{ needs.validate.outputs.TAG }}
+          docker run --rm -d -p 80:80 $IMAGE_NAME:${{ needs.validate.outputs.TAG }}
 
       # 테스트 스크립트 실행 (선택)
       - name: Run smoke test
