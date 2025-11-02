@@ -112,7 +112,15 @@ jobs:
         with:
           tag: ${{ env.DOCKER_TAG }}
           name: "Release ${{ env.DOCKER_TAG }}"
-          body: "Docker image: $IMAGE_NAME:${{ env.DOCKER_TAG }}"
+          body: |
+            🚀 **Docker Image**
+            [${{ env.IMAGE_NAME }}:${{ env.DOCKER_TAG }}](https://ghcr.io/${{ github.repository }}/hello-app:${{ env.DOCKER_TAG }})
+
+            ---
+            🔹 Build info:
+            - Repository: ${{ github.repository }}
+            - Triggered by: ${{ github.actor }}
+            - Commit: ${{ github.sha }}
           draft: false
           prerelease: false
 
