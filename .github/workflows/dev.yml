@@ -1,5 +1,4 @@
 # main 브랜치의 파일이 변경되었을 때 실행
-# 간단한 빌드 동작만 수행함
 
 name: Deploy to Dev
 
@@ -16,40 +15,40 @@ permissions:
   contents: read
 
 env:
-  GHCR_URL: ""
   IMAGE_NAME: "ghcr.io/${{ github.repository }}/hello-app"
-  DOCKER_TAG: ""
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     outputs:
-      DOCKER_TAG: ${{ steps.set_tag.outputs.DOCKER_TAG }}  # step에서 output으로 지정
+      DOCKER_TAG: ${{ steps.set_tag.outputs.DOCKER_TAG }}
 
     steps:
-      # 1. 코드 체크아웃
+      # 체크아웃: 코드 리포지토리 가져오기
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Docker 태그 계산 및 환경변수 설정
+      # Docker 태그 계산 및 환경 변수 설정
       - name: Set Docker tag
         id: set_tag
         run: |
-          TAG="${GITHUB_REF_NAME}-$(date +'%Y%m%d-%H%M')"
+          TAG="$(date +'%Y%m%d-%H%M')"
           echo "Calculated Docker tag: $TAG"
           echo "DOCKER_TAG=$TAG" >> $GITHUB_ENV
           echo "DOCKER_TAG=$TAG" >> $GITHUB_OUTPUT
 
-      # 2. Docker 빌드
+      # Docker 이미지 빌드
       - name: Build Docker image
         run: |
           docker build -f infra/docker/dockerfile -t $IMAGE_NAME:$DOCKER_TAG .
 
+      # GHCR 로그인
       - name: Login to GHCR
         run: |
           echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+      # Docker 이미지 Push
       - name: Push Docker image to GHCR
         run: |
           docker push $IMAGE_NAME:$DOCKER_TAG
@@ -59,28 +58,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # build job에서 생성한 Docker 태그 가져오기
       - name: Get docker tag
         run: |
           echo "DOCKER_TAG=${{ needs.build.outputs.DOCKER_TAG }}" >> $GITHUB_ENV
 
+      # GHCR 로그인
       - name: Login to GHCR
         run: |
           echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      # 2. Docker 이미지 가져오기 (build job에서 push 완료했으므로 pull)
+      # Docker 이미지 Pull
       - name: Pull Docker image
         run: |
           docker pull $IMAGE_NAME:$DOCKER_TAG
 
+      # Docker 컨테이너 실행
       - name: Run Docker image
         run: |
           docker run -d -p 80:80 $IMAGE_NAME:$DOCKER_TAG
 
-      # 1. 코드 체크아웃
+      # 코드 체크아웃
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 3. 스모크 테스트
+      # 스모크 테스트 실행
       - name: Run smoke test
         run: |
           ./infra/test/smoke.sh
@@ -90,8 +92,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # TBD: 배포 단계
       - name: Get docker tag
         run: |
           echo "TBD"
-
-      

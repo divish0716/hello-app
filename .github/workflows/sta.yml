@@ -1,0 +1,119 @@
+name: Auto Release & Deploy to STA
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read  # 기본: 코드 접근용
+
+env:
+  IMAGE_NAME: "ghcr.io/${{ github.repository }}/hello-app"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      DOCKER_TAG: ${{ steps.set_tag.outputs.DOCKER_TAG }}
+    steps:
+      # 코드 체크아웃
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 자동 릴리즈 버전 계산 (Patch 증가)
+      - name: Calculate next release tag
+        id: set_tag
+        run: |
+          # 기존 태그 목록 가져오기
+          git fetch --tags
+          LAST_TAG=$(git tag --sort=-creatordate | head -n1)
+          
+          if [ -z "$LAST_TAG" ]; then
+            NEXT_TAG="0.1.0"
+          else
+            MAJOR=$(echo $LAST_TAG | cut -d. -f1)
+            MINOR=$(echo $LAST_TAG | cut -d. -f2)
+            PATCH=$(echo $LAST_TAG | cut -d. -f3)
+            PATCH=$((PATCH+1))
+            NEXT_TAG="$MAJOR.$MINOR.$PATCH"
+          fi
+
+          echo "Next release tag: $NEXT_TAG"
+          echo "DOCKER_TAG=$NEXT_TAG" >> $GITHUB_ENV
+          echo "DOCKER_TAG=$NEXT_TAG" >> $GITHUB_OUTPUT
+
+      # Docker 이미지 빌드
+      - name: Build Docker image
+        run: |
+          docker build -f infra/docker/dockerfile -t $IMAGE_NAME:$DOCKER_TAG .
+
+      # GHCR 로그인
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      # Docker 이미지 Push
+      - name: Push Docker image
+        run: |
+          docker push $IMAGE_NAME:$DOCKER_TAG
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      # Docker 이미지 Pull
+      - name: Pull Docker image
+        run: |
+          docker pull $IMAGE_NAME:${{ needs.build.outputs.DOCKER_TAG }}
+
+      # Docker 컨테이너 실행
+      - name: Run Docker image
+        run: |
+          docker run -d -p 80:80 $IMAGE_NAME:${{ needs.build.outputs.DOCKER_TAG }}
+
+      # 코드 체크아웃 (스모크 테스트용)
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 스모크 테스트
+      - name: Run smoke test
+        run: |
+          ./infra/test/smoke.sh
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 릴리즈 생성용
+    steps:
+      # 코드 체크아웃
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Git 태그 생성 및 push
+      - name: Create Git tag
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git tag ${{ needs.build.outputs.DOCKER_TAG }}
+          git push origin ${{ needs.build.outputs.DOCKER_TAG }}
+
+      # GitHub Release 생성
+      - name: Create GitHub release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ needs.build.outputs.DOCKER_TAG }}
+          name: "Release ${{ needs.build.outputs.DOCKER_TAG }}"
+          body: "Docker image: $IMAGE_NAME:${{ needs.build.outputs.DOCKER_TAG }}"
+          draft: false
+          prerelease: false
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # TBD: 배포 단계
+      - name: Get docker tag
+        run: |
+          echo "TBD"
