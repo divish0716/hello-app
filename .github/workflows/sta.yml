@@ -1,14 +1,14 @@
 name: Auto Release & Deploy to STA
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch: {}  # 수동 실행 (Run workflow 버튼 클릭 시 실행)
 
 permissions:
   id-token: write
-  contents: read  # 기본: 코드 접근용
+  contents: read  # 코드 접근용 기본 권한
 
 env:
-  IMAGE_NAME: "ghcr.io/${{ github.repository }}/hello-app"
+  IMAGE_NAME: "ghcr.io/${{ github.repository }}/hello-app"  # 빌드/배포용 Docker 이미지 이름
 
 jobs:
   build:
@@ -16,15 +16,14 @@ jobs:
     outputs:
       DOCKER_TAG: ${{ steps.set_tag.outputs.DOCKER_TAG }}
     steps:
-      # 코드 체크아웃
+      # ✅ 코드 체크아웃 (현재 브랜치의 코드 가져오기)
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 자동 릴리즈 버전 계산 (Patch 증가)
+      # 🔢 자동 릴리즈 버전 계산 (Patch 버전 자동 증가)
       - name: Calculate next release tag
         id: set_tag
         run: |
-          # 기존 태그 목록 가져오기
           git fetch --tags
           LAST_TAG=$(git tag --sort=-creatordate | head -n1)
           
@@ -42,17 +41,17 @@ jobs:
           echo "DOCKER_TAG=$NEXT_TAG" >> $GITHUB_ENV
           echo "DOCKER_TAG=$NEXT_TAG" >> $GITHUB_OUTPUT
 
-      # Docker 이미지 빌드
+      # 🧱 Docker 이미지 빌드
       - name: Build Docker image
         run: |
           docker build -f infra/docker/dockerfile -t $IMAGE_NAME:$DOCKER_TAG .
 
-      # GHCR 로그인
+      # 🔐 GHCR 로그인 (GitHub Container Registry 인증)
       - name: Login to GHCR
         run: |
           echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      # Docker 이미지 Push
+      # 📦 Docker 이미지 Push (GHCR에 업로드)
       - name: Push Docker image
         run: |
           docker push $IMAGE_NAME:$DOCKER_TAG
@@ -61,59 +60,75 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      # Docker 이미지 Pull
+      # 🔐 GHCR 로그인 (이미지 Pull을 위해 재인증)
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      # 📥 빌드된 Docker 이미지 Pull
       - name: Pull Docker image
         run: |
           docker pull $IMAGE_NAME:${{ needs.build.outputs.DOCKER_TAG }}
 
-      # Docker 컨테이너 실행
+      # 🚀 Docker 컨테이너 실행 (테스트용 실행)
       - name: Run Docker image
         run: |
           docker run -d -p 80:80 $IMAGE_NAME:${{ needs.build.outputs.DOCKER_TAG }}
 
-      # 코드 체크아웃 (스모크 테스트용)
+      # ✅ 코드 체크아웃 (테스트 스크립트 접근용)
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 스모크 테스트
+      # 🧪 스모크 테스트 실행
       - name: Run smoke test
         run: |
           ./infra/test/smoke.sh
 
   release:
-    needs: test
+    needs: [test]
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 릴리즈 생성용
+      contents: write  # 릴리즈 생성 권한
     steps:
-      # 코드 체크아웃
+      # ✅ 코드 체크아웃 (릴리즈 생성용)
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Git 태그 생성 및 push
+      # 🏷️ DOCKER_TAG 환경변수 복원 (이전 Job 결과 불러오기)
+      - name: Set Docker tag
+        run: echo "DOCKER_TAG=${{ needs.build.outputs.DOCKER_TAG }}" >> $GITHUB_ENV
+
+      # 🔖 Git 태그 생성 및 원격 저장소에 Push
       - name: Create Git tag
         run: |
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
-          git tag ${{ needs.build.outputs.DOCKER_TAG }}
-          git push origin ${{ needs.build.outputs.DOCKER_TAG }}
+          git tag $DOCKER_TAG
+          git push origin $DOCKER_TAG
 
-      # GitHub Release 생성
+      # 📝 GitHub Release 생성 (자동 릴리즈 페이지 등록)
       - name: Create GitHub release
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ needs.build.outputs.DOCKER_TAG }}
-          name: "Release ${{ needs.build.outputs.DOCKER_TAG }}"
-          body: "Docker image: $IMAGE_NAME:${{ needs.build.outputs.DOCKER_TAG }}"
+          tag: ${{ env.DOCKER_TAG }}
+          name: "Release ${{ env.DOCKER_TAG }}"
+          body: |
+            🚀 **Docker Image**
+            [${{ env.IMAGE_NAME }}:${{ env.DOCKER_TAG }}](https://ghcr.io/${{ github.repository }}/hello-app:${{ env.DOCKER_TAG }})
+
+            ---
+            🔹 Build info:
+            - Repository: ${{ github.repository }}
+            - Triggered by: ${{ github.actor }}
+            - Commit: ${{ github.sha }}
           draft: false
           prerelease: false
 
   deploy:
-    needs: build
+    needs: release
     runs-on: ubuntu-latest
-
     steps:
-      # TBD: 배포 단계
+      # 🚢 (TBD) 배포 단계 - 추후 실제 검증계로 배포 구현 예정
       - name: Get docker tag
         run: |
           echo "TBD"
